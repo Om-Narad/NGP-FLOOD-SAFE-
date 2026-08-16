@@ -1,0 +1,3 @@
+## 2026-08-16 - O(1) Map Indexing for React Context Relational Data Lookups
+**Learning:** In React applications handling relational geographical data (e.g., zones linked to road IDs), computing derived state by calling `Array.find` inside render functions or item iterators creates $O(Z \times K \times R)$ performance bottlenecks.
+**Action:** Pre-construct a `Map` of relational entities within `useMemo` hooks (reducing computation to $O(R + Z \times K)$) and attach pre-resolved relations (such as `connectedRoads`) directly to computed zone objects so child components can access them in $O(1)$ time without linear array searches.
