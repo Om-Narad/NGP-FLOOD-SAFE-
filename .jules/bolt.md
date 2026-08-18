@@ -1,0 +1,3 @@
+## 2026-08-18 - Replacing nested Array.find with Map lookups in zone calculations
+**Learning:** In React contexts calculating aggregate metrics across nested entity relationships (e.g., zones and connecting roads), using `Array.prototype.find` inside array iterations yields $O(Z \cdot K \cdot R)$ time complexity, causing unnecessary re-computation overhead on state changes. Pre-building a `Map` reduces calculation time to $O(R + Z \cdot K)$.
+**Action:** Always pre-index referenced list collections into `Map` structures when computing derived state across relational data arrays in React contexts or rendering lists.
