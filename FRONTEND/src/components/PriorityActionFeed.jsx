@@ -48,7 +48,10 @@ export default function PriorityActionFeed() {
       {/* Scrollable Zone Cards List */}
       <div className="space-y-3 overflow-y-auto pr-1 flex-1 max-h-[620px]">
         <AnimatePresence>
-          {zones.map((zone, index) => {
+          {(() => {
+            // Performance Optimization: Build O(1) road Map outside zone map loop to avoid repetitive O(R) searches
+            const roadsMap = new Map(roads.map(r => [r.id, r]));
+            return zones.map((zone, index) => {
             const isExpanded = selectedZoneId === zone.id;
             const isAssigned = zone.status === 'Assigned';
 
@@ -63,9 +66,9 @@ export default function PriorityActionFeed() {
               badgeBg = 'bg-amber-50 text-amber-700 border-amber-200';
             }
 
-            // Get names of connecting roads
+            // Get names of connecting roads via O(1) Map lookup
             const zoneRoadObjs = zone.roadIds
-              .map(rId => roads.find(r => r.id === rId))
+              .map(rId => roadsMap.get(rId))
               .filter(Boolean);
 
             return (
@@ -224,7 +227,8 @@ export default function PriorityActionFeed() {
                 )}
               </motion.div>
             );
-          })}
+          });
+          })()}
         </AnimatePresence>
       </div>
 
