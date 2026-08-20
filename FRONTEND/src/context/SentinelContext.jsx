@@ -72,8 +72,14 @@ export function normalizeZone(z, idx) {
   };
 }
 
-export function computeZonePriority(zone, roadsList) {
-  const zoneRoads = (zone.roadIds || []).map(id => roadsList.find(r => r.id === id)).filter(Boolean);
+export function computeZonePriority(zone, roadsInput) {
+  // Performance Optimization (Bolt): Pre-construct or accept Map for O(1) constant-time road lookup
+  // instead of performing O(N) array .find() operations per zone road ID.
+  const roadsMap = Array.isArray(roadsInput)
+    ? new Map(roadsInput.map(r => [r.id, r]))
+    : roadsInput;
+
+  const zoneRoads = (zone.roadIds || []).map(id => roadsMap.get(id)).filter(Boolean);
   const openRoads = zoneRoads.filter(r => r.status === 'open');
   const openCount = openRoads.length;
   const totalCount = (zone.roadIds || []).length;
@@ -120,6 +126,7 @@ export function computeZonePriority(zone, roadsList) {
     roadsOpen: openCount,
     totalRoads: totalCount,
     rationale,
+    connectedRoads: zoneRoads,
   };
 }
 
@@ -216,8 +223,11 @@ export function SentinelProvider({ children }) {
   };
 
   const zones = useMemo(() => {
+    // Performance Optimization (Bolt): Build roads Map once to pass to computeZonePriority
+    // reducing total zone route calculation time complexity from O(Z * K * R) to O(R + Z * K).
+    const roadsMap = new Map(roads.map(r => [r.id, r]));
     return rawZones
-      .map(z => computeZonePriority(z, roads))
+      .map(z => computeZonePriority(z, roadsMap))
       .sort((a, b) => b.priority - a.priority);
   }, [rawZones, roads]);
 
