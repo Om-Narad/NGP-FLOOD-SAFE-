@@ -1,0 +1,3 @@
+## 2026-08-22 - Map-Based Indexing for Dynamic Zone Priority Computation
+**Learning:** In SentinelPlan, calculating priority scores across multiple zones involves searching the `roads` collection per road ID attached to each zone. Performing linear array searches (`roads.find`) inside `useMemo` and component render loops scales as $O(Z \cdot K \cdot R)$ where $Z$ is zones, $K$ is roads per zone, and $R$ is total roads.
+**Action:** Always pre-index relational array datasets into a `Map` ($O(R)$ setup) before evaluating nested computations or rendering zone feeds, reducing lookups to $O(1)$ and overall runtime to $O(R + Z \cdot K)$.
