@@ -63,8 +63,8 @@ export default function PriorityActionFeed() {
               badgeBg = 'bg-amber-50 text-amber-700 border-amber-200';
             }
 
-            // Get names of connecting roads
-            const zoneRoadObjs = zone.roadIds
+            // Performance Optimization: Use pre-computed connectedRoads from SentinelContext to avoid O(M) road.find scans per zone
+            const zoneRoadObjs = zone.connectedRoads || zone.roadIds
               .map(rId => roads.find(r => r.id === rId))
               .filter(Boolean);
 
