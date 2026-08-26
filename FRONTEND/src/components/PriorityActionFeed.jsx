@@ -63,10 +63,8 @@ export default function PriorityActionFeed() {
               badgeBg = 'bg-amber-50 text-amber-700 border-amber-200';
             }
 
-            // Get names of connecting roads
-            const zoneRoadObjs = zone.roadIds
-              .map(rId => roads.find(r => r.id === rId))
-              .filter(Boolean);
+            // Performance optimization: Use pre-resolved roadObjs from computeZonePriority to eliminate O(N) array finds on every render
+            const zoneRoadObjs = zone.roadObjs || [];
 
             return (
               <motion.div
