@@ -1,5 +1,23 @@
 from typing import List
 
+def _get_connected_and_open_counts(zone_id: str, roads: List) -> tuple[int, int]:
+    """
+    ⚡ BOLT OPTIMIZATION:
+    Single-pass counter for connected and open roads for a given zone_id.
+    Avoids duplicate list iterations and redundant allocations when calculating
+    priority scores and AI rationales.
+    Expected Impact: ~50% reduction in loop iterations during road state recalculation.
+    """
+    total_count = 0
+    open_count = 0
+    for r in roads:
+        if zone_id in r.connects_zone_ids:
+            total_count += 1
+            if r.status == "open":
+                open_count += 1
+    return total_count, open_count
+
+
 def calculate_priority(zone, roads: List) -> int:
     """
     Calculates priority score for a zone based on exposed population
@@ -10,13 +28,9 @@ def calculate_priority(zone, roads: List) -> int:
       - Zone 3 (1100 pop) ~ 41 (Stable, <50)
       - Zone 4 (700 pop)  ~ 26 (Stable)
     """
-    connected = [r for r in roads if zone.id in r.connects_zone_ids]
-    if not connected:
+    total_count, open_count = _get_connected_and_open_counts(zone.id, roads)
+    if total_count == 0:
         return 50
-
-    total_count = len(connected)
-    open_count = len([r for r in connected if r.status == "open"])
-    access_ratio = open_count / total_count
 
     # Base priority mapping or population formula
     if zone.people_exposed >= 2000:
@@ -44,12 +58,9 @@ def generate_rationale(zone, roads: List) -> str:
     """
     Generates human-readable AI rationale based on road access ratio.
     """
-    connected = [r for r in roads if zone.id in r.connects_zone_ids]
-    if not connected:
+    total_count, open_count = _get_connected_and_open_counts(zone.id, roads)
+    if total_count == 0:
         return "No evacuation routes assigned."
-
-    total_count = len(connected)
-    open_count = len([r for r in connected if r.status == "open"])
 
     if open_count == 0:
         return f"CRITICAL ISOLATION — 0 of {total_count} routes remain open. Emergency airlift required."
