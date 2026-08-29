@@ -102,6 +102,14 @@ def seed_region_state(region_id: str):
     stats = Stats(**r_data["stats"])
     alerts = [Alert(**a) for a in r_data["alerts"]]
 
+    # Pre-index roads by connected zone IDs for O(Z + R) priority evaluation
+    roads_by_zone: Dict[str, List[Road]] = {}
+    for r in roads:
+        for zid in r.connects_zone_ids:
+            if zid not in roads_by_zone:
+                roads_by_zone[zid] = []
+            roads_by_zone[zid].append(r)
+
     zones = []
     for zd in r_data["zones"]:
         temp_zone = Zone(
@@ -115,8 +123,9 @@ def seed_region_state(region_id: str):
             assigned_shelter=zd["assigned_shelter"],
             rationale=""
         )
-        temp_zone.priority_score = calculate_priority(temp_zone, roads)
-        temp_zone.rationale = generate_rationale(temp_zone, roads)
+        conn_roads = roads_by_zone.get(temp_zone.id, [])
+        temp_zone.priority_score = calculate_priority(temp_zone, roads, connected_roads=conn_roads)
+        temp_zone.rationale = generate_rationale(temp_zone, roads, connected_roads=conn_roads)
         zones.append(temp_zone)
 
     REGION_STATES[region_id] = {
@@ -295,11 +304,20 @@ def toggle_road(road_id: str, region: str = Query("assam")):
     new_status = "blocked" if road.status == "open" else "open"
     road.status = new_status
 
+    # Pre-index roads by connected zone IDs for O(Z + R) priority evaluation
+    roads_by_zone: Dict[str, List[Road]] = {}
+    for r in roads:
+        for zid in r.connects_zone_ids:
+            if zid not in roads_by_zone:
+                roads_by_zone[zid] = []
+            roads_by_zone[zid].append(r)
+
     affected_count = 0
     for zone in zones:
-        if road_id in zone.id or road_id in [r.id for r in roads if zone.id in r.connects_zone_ids]:
-            zone.priority_score = calculate_priority(zone, roads)
-            zone.rationale = generate_rationale(zone, roads)
+        conn_roads = roads_by_zone.get(zone.id, [])
+        if road_id in zone.id or any(r.id == road_id for r in conn_roads):
+            zone.priority_score = calculate_priority(zone, roads, connected_roads=conn_roads)
+            zone.rationale = generate_rationale(zone, roads, connected_roads=conn_roads)
             affected_count += 1
 
     alert_msg = f"Road {road.name} {new_status}, {affected_count} zone(s) re-prioritized"
