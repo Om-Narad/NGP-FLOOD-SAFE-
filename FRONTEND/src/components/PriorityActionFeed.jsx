@@ -22,6 +22,9 @@ export default function PriorityActionFeed() {
     assignResponders,
   } = useSentinel();
 
+  // Performance Optimization: Pre-index roads into a Map O(R) to avoid O(Z * R) linear `.find()` scans during render
+  const roadMap = React.useMemo(() => new Map(roads.map(r => [r.id, r])), [roads]);
+
   const toggleExpand = (zoneId) => {
     setSelectedZoneId(prev => (prev === zoneId ? null : zoneId));
   };
@@ -63,9 +66,9 @@ export default function PriorityActionFeed() {
               badgeBg = 'bg-amber-50 text-amber-700 border-amber-200';
             }
 
-            // Get names of connecting roads
+            // Performance Optimization: O(1) road lookup from pre-indexed Map
             const zoneRoadObjs = zone.roadIds
-              .map(rId => roads.find(r => r.id === rId))
+              .map(rId => roadMap.get(rId))
               .filter(Boolean);
 
             return (
