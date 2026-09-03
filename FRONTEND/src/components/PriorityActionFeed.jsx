@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { useSentinel } from '../context/SentinelContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -21,6 +21,9 @@ export default function PriorityActionFeed() {
     setSelectedZoneId,
     assignResponders,
   } = useSentinel();
+
+  // Optimization: Memoize Map lookup for roads to avoid O(M) Array.find on every zone card render
+  const roadsMap = useMemo(() => new Map(roads.map(r => [r.id, r])), [roads]);
 
   const toggleExpand = (zoneId) => {
     setSelectedZoneId(prev => (prev === zoneId ? null : zoneId));
@@ -63,9 +66,9 @@ export default function PriorityActionFeed() {
               badgeBg = 'bg-amber-50 text-amber-700 border-amber-200';
             }
 
-            // Get names of connecting roads
+            // Get names of connecting roads via O(1) Map lookup
             const zoneRoadObjs = zone.roadIds
-              .map(rId => roads.find(r => r.id === rId))
+              .map(rId => roadsMap.get(rId))
               .filter(Boolean);
 
             return (
