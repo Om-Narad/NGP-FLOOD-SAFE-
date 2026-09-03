@@ -102,6 +102,12 @@ def seed_region_state(region_id: str):
     stats = Stats(**r_data["stats"])
     alerts = [Alert(**a) for a in r_data["alerts"]]
 
+    # Pre-index roads by connected zone ID for O(1) route lookups
+    zone_to_roads: Dict[str, List] = {}
+    for r in roads:
+        for zid in r.connects_zone_ids:
+            zone_to_roads.setdefault(zid, []).append(r)
+
     zones = []
     for zd in r_data["zones"]:
         temp_zone = Zone(
@@ -115,8 +121,9 @@ def seed_region_state(region_id: str):
             assigned_shelter=zd["assigned_shelter"],
             rationale=""
         )
-        temp_zone.priority_score = calculate_priority(temp_zone, roads)
-        temp_zone.rationale = generate_rationale(temp_zone, roads)
+        conn = zone_to_roads.get(temp_zone.id, [])
+        temp_zone.priority_score = calculate_priority(temp_zone, roads, connected_roads=conn)
+        temp_zone.rationale = generate_rationale(temp_zone, roads, connected_roads=conn)
         zones.append(temp_zone)
 
     REGION_STATES[region_id] = {
@@ -295,11 +302,18 @@ def toggle_road(road_id: str, region: str = Query("assam")):
     new_status = "blocked" if road.status == "open" else "open"
     road.status = new_status
 
+    # Pre-index roads by connected zone ID for O(1) route lookups
+    zone_to_roads: Dict[str, List] = {}
+    for r in roads:
+        for zid in r.connects_zone_ids:
+            zone_to_roads.setdefault(zid, []).append(r)
+
     affected_count = 0
     for zone in zones:
-        if road_id in zone.id or road_id in [r.id for r in roads if zone.id in r.connects_zone_ids]:
-            zone.priority_score = calculate_priority(zone, roads)
-            zone.rationale = generate_rationale(zone, roads)
+        conn = zone_to_roads.get(zone.id, [])
+        if road_id in zone.id or any(r.id == road_id for r in conn):
+            zone.priority_score = calculate_priority(zone, roads, connected_roads=conn)
+            zone.rationale = generate_rationale(zone, roads, connected_roads=conn)
             affected_count += 1
 
     alert_msg = f"Road {road.name} {new_status}, {affected_count} zone(s) re-prioritized"
