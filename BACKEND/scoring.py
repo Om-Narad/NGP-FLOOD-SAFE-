@@ -1,4 +1,20 @@
-from typing import List
+from typing import List, Tuple
+
+def _get_road_counts(zone, roads: List) -> Tuple[int, int]:
+    """
+    Single-pass performance helper to count connected and open roads for a zone.
+    Avoids multiple list allocations and intermediate list comprehensions.
+    """
+    total_count = 0
+    open_count = 0
+    zone_id = zone.id
+    for r in roads:
+        if zone_id in r.connects_zone_ids:
+            total_count += 1
+            if r.status == "open":
+                open_count += 1
+    return total_count, open_count
+
 
 def calculate_priority(zone, roads: List) -> int:
     """
@@ -10,13 +26,10 @@ def calculate_priority(zone, roads: List) -> int:
       - Zone 3 (1100 pop) ~ 41 (Stable, <50)
       - Zone 4 (700 pop)  ~ 26 (Stable)
     """
-    connected = [r for r in roads if zone.id in r.connects_zone_ids]
-    if not connected:
+    # Bolt optimization: Single-pass iteration avoids allocating connected road lists
+    total_count, open_count = _get_road_counts(zone, roads)
+    if total_count == 0:
         return 50
-
-    total_count = len(connected)
-    open_count = len([r for r in connected if r.status == "open"])
-    access_ratio = open_count / total_count
 
     # Base priority mapping or population formula
     if zone.people_exposed >= 2000:
@@ -44,12 +57,10 @@ def generate_rationale(zone, roads: List) -> str:
     """
     Generates human-readable AI rationale based on road access ratio.
     """
-    connected = [r for r in roads if zone.id in r.connects_zone_ids]
-    if not connected:
+    # Bolt optimization: Single-pass iteration avoids allocating connected road lists
+    total_count, open_count = _get_road_counts(zone, roads)
+    if total_count == 0:
         return "No evacuation routes assigned."
-
-    total_count = len(connected)
-    open_count = len([r for r in connected if r.status == "open"])
 
     if open_count == 0:
         return f"CRITICAL ISOLATION — 0 of {total_count} routes remain open. Emergency airlift required."
