@@ -63,10 +63,8 @@ export default function PriorityActionFeed() {
               badgeBg = 'bg-amber-50 text-amber-700 border-amber-200';
             }
 
-            // Get names of connecting roads
-            const zoneRoadObjs = zone.roadIds
-              .map(rId => roads.find(r => r.id === rId))
-              .filter(Boolean);
+            // BOLT OPTIMIZATION: Use pre-resolved zone.zoneRoadObjs to eliminate O(N) array scans during card rendering
+            const zoneRoadObjs = zone.zoneRoadObjs || zone.roadIds.map(rId => roads.find(r => r.id === rId)).filter(Boolean);
 
             return (
               <motion.div
