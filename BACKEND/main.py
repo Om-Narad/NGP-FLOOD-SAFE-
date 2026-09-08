@@ -297,7 +297,8 @@ def toggle_road(road_id: str, region: str = Query("assam")):
 
     affected_count = 0
     for zone in zones:
-        if road_id in zone.id or road_id in [r.id for r in roads if zone.id in r.connects_zone_ids]:
+        # Performance Optimization: Direct check if zone ID is connected to this road
+        if zone.id in road.connects_zone_ids:
             zone.priority_score = calculate_priority(zone, roads)
             zone.rationale = generate_rationale(zone, roads)
             affected_count += 1
