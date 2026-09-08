@@ -15,7 +15,8 @@ def calculate_priority(zone, roads: List) -> int:
         return 50
 
     total_count = len(connected)
-    open_count = len([r for r in connected if r.status == "open"])
+    # Performance Optimization: Generator expression counting instead of list allocation
+    open_count = sum(1 for r in connected if r.status == "open")
     access_ratio = open_count / total_count
 
     # Base priority mapping or population formula
@@ -49,7 +50,8 @@ def generate_rationale(zone, roads: List) -> str:
         return "No evacuation routes assigned."
 
     total_count = len(connected)
-    open_count = len([r for r in connected if r.status == "open"])
+    # Performance Optimization: Generator expression counting instead of list allocation
+    open_count = sum(1 for r in connected if r.status == "open")
 
     if open_count == 0:
         return f"CRITICAL ISOLATION — 0 of {total_count} routes remain open. Emergency airlift required."
