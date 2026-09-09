@@ -72,8 +72,18 @@ export function normalizeZone(z, idx) {
   };
 }
 
-export function computeZonePriority(zone, roadsList) {
-  const zoneRoads = (zone.roadIds || []).map(id => roadsList.find(r => r.id === id)).filter(Boolean);
+/**
+ * Computes priority score and rationale for a zone based on open/blocked road statuses.
+ *
+ * Bolt Optimization:
+ * Accepts either a Array of roads or a Map of roadId -> road. Using a Map avoids repeated O(N) array scans
+ * (`roadsList.find`) per zone road ID, reducing zone priority recalculation complexity from O(Z * R) to O(Z + R).
+ */
+export function computeZonePriority(zone, roadsMapOrList) {
+  const isMap = roadsMapOrList instanceof Map;
+  const zoneRoads = (zone.roadIds || [])
+    .map(id => isMap ? roadsMapOrList.get(id) : roadsMapOrList.find(r => r.id === id))
+    .filter(Boolean);
   const openRoads = zoneRoads.filter(r => r.status === 'open');
   const openCount = openRoads.length;
   const totalCount = (zone.roadIds || []).length;
@@ -216,8 +226,11 @@ export function SentinelProvider({ children }) {
   };
 
   const zones = useMemo(() => {
+    // Bolt Optimization: Pre-build a Map of roads by ID for O(1) lookups during zone priority calculations.
+    // This reduces overall priority calculation complexity across all zones from O(Z * R) to O(Z + R).
+    const roadMap = new Map(roads.map(r => [r.id, r]));
     return rawZones
-      .map(z => computeZonePriority(z, roads))
+      .map(z => computeZonePriority(z, roadMap))
       .sort((a, b) => b.priority - a.priority);
   }, [rawZones, roads]);
 
