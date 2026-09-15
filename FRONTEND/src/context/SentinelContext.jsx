@@ -73,7 +73,9 @@ export function normalizeZone(z, idx) {
 }
 
 export function computeZonePriority(zone, roadsList) {
-  const zoneRoads = (zone.roadIds || []).map(id => roadsList.find(r => r.id === id)).filter(Boolean);
+  // Performance optimization: Build a Map for O(1) road lookups instead of O(N) array searches
+  const roadsMap = roadsList instanceof Map ? roadsList : new Map((roadsList || []).map(r => [r.id, r]));
+  const zoneRoads = (zone.roadIds || []).map(id => roadsMap.get(id)).filter(Boolean);
   const openRoads = zoneRoads.filter(r => r.status === 'open');
   const openCount = openRoads.length;
   const totalCount = (zone.roadIds || []).length;
@@ -211,22 +213,19 @@ export function SentinelProvider({ children }) {
     fetchStateForRegion(currentRegionId);
   }, [currentRegionId, fetchStateForRegion]);
 
-  const switchRegion = (regionId) => {
+  const switchRegion = useCallback((regionId) => {
     setCurrentRegionId(regionId);
-  };
+  }, []);
 
+  // Performance optimization: Pre-map roads into a Map for O(1) key lookups during priority calculations
   const zones = useMemo(() => {
+    const roadsMap = new Map(roads.map(r => [r.id, r]));
     return rawZones
-      .map(z => computeZonePriority(z, roads))
+      .map(z => computeZonePriority(z, roadsMap))
       .sort((a, b) => b.priority - a.priority);
   }, [rawZones, roads]);
 
-  const getFormattedTime = () => {
-    const now = new Date();
-    return now.toTimeString().split(' ')[0];
-  };
-
-  const toggleRoadStatus = async (roadId) => {
+  const toggleRoadStatus = useCallback(async (roadId) => {
     if (apiOnline) {
       try {
         const res = await fetch(`${API_URL}/api/roads/${roadId}/toggle?region=${encodeURIComponent(currentRegionId)}`, { method: 'POST' });
@@ -256,16 +255,17 @@ export function SentinelProvider({ children }) {
     setRoads(updatedRoads);
     const affectedZones = rawZones.filter(z => (z.roadIds || []).includes(roadId));
 
+    const timeStr = new Date().toTimeString().split(' ')[0];
     const newAlert = {
       id: `alert-${Date.now()}`,
-      timestamp: getFormattedTime(),
-      message: `${getFormattedTime()} — Road ${toggledRoadName} ${newStatus}, ${affectedZones.length} zones re-prioritized`,
+      timestamp: timeStr,
+      message: `${timeStr} — Road ${toggledRoadName || roadId} ${newStatus}, ${affectedZones.length} zones re-prioritized`,
       type: newStatus === 'blocked' ? 'warning' : 'info',
     };
     setAlerts(prev => [newAlert, ...prev]);
-  };
+  }, [apiOnline, currentRegionId, roads, rawZones]);
 
-  const simulateRoadBlock = async () => {
+  const simulateRoadBlock = useCallback(async () => {
     if (apiOnline) {
       try {
         const res = await fetch(`${API_URL}/api/simulate?region=${encodeURIComponent(currentRegionId)}`, { method: 'POST' });
@@ -284,9 +284,9 @@ export function SentinelProvider({ children }) {
     if (firstRoad) {
       toggleRoadStatus(firstRoad.id);
     }
-  };
+  }, [apiOnline, currentRegionId, roads, toggleRoadStatus]);
 
-  const assignResponders = async (zoneId) => {
+  const assignResponders = useCallback(async (zoneId) => {
     if (apiOnline) {
       try {
         const res = await fetch(`${API_URL}/api/zones/${zoneId}/assign?region=${encodeURIComponent(currentRegionId)}`, { method: 'POST' });
@@ -332,9 +332,9 @@ export function SentinelProvider({ children }) {
         return z;
       })
     );
-  };
+  }, [apiOnline, currentRegionId]);
 
-  const predictFlood = async (imageFile) => {
+  const predictFlood = useCallback(async (imageFile) => {
     const formData = new FormData();
     formData.append('file', imageFile);
     const url = `${API_URL}/api/predict?region=${encodeURIComponent(currentRegionId)}`;
@@ -351,7 +351,7 @@ export function SentinelProvider({ children }) {
     const result = await res.json();
     fetchStateForRegion(currentRegionId);
     return result;
-  };
+  }, [currentRegionId, fetchStateForRegion]);
 
   // ─── SOS Alert Functions ───────────────────────────────────────────────────
 
@@ -450,34 +450,56 @@ export function SentinelProvider({ children }) {
     setSosNotification(null);
   }, []);
 
+  // Performance optimization: Memoize context value to prevent unnecessary component tree re-renders
+  const contextValue = useMemo(() => ({
+    currentView,
+    setCurrentView,
+    currentRegionId,
+    currentRegionMeta,
+    availableRegions,
+    switchRegion,
+    zones,
+    roads,
+    alerts,
+    stats,
+    selectedZoneId,
+    setSelectedZoneId,
+    toggleRoadStatus,
+    simulateRoadBlock,
+    assignResponders,
+    predictFlood,
+    apiOnline,
+    // SOS Alert System
+    sosAlerts,
+    sosNotification,
+    sendSosAlert,
+    sendMassSos,
+    dismissSosNotification,
+  }), [
+    currentView,
+    currentRegionId,
+    currentRegionMeta,
+    availableRegions,
+    switchRegion,
+    zones,
+    roads,
+    alerts,
+    stats,
+    selectedZoneId,
+    toggleRoadStatus,
+    simulateRoadBlock,
+    assignResponders,
+    predictFlood,
+    apiOnline,
+    sosAlerts,
+    sosNotification,
+    sendSosAlert,
+    sendMassSos,
+    dismissSosNotification,
+  ]);
+
   return (
-    <SentinelContext.Provider
-      value={{
-        currentView,
-        setCurrentView,
-        currentRegionId,
-        currentRegionMeta,
-        availableRegions,
-        switchRegion,
-        zones,
-        roads,
-        alerts,
-        stats,
-        selectedZoneId,
-        setSelectedZoneId,
-        toggleRoadStatus,
-        simulateRoadBlock,
-        assignResponders,
-        predictFlood,
-        apiOnline,
-        // SOS Alert System
-        sosAlerts,
-        sosNotification,
-        sendSosAlert,
-        sendMassSos,
-        dismissSosNotification,
-      }}
-    >
+    <SentinelContext.Provider value={contextValue}>
       {children}
     </SentinelContext.Provider>
   );
