@@ -1,6 +1,6 @@
-from typing import List
+from typing import List, Optional
 
-def calculate_priority(zone, roads: List) -> int:
+def calculate_priority(zone, roads: List, connected_roads: Optional[List] = None) -> int:
     """
     Calculates priority score for a zone based on exposed population
     and the status of connected evacuation roads.
@@ -10,7 +10,8 @@ def calculate_priority(zone, roads: List) -> int:
       - Zone 3 (1100 pop) ~ 41 (Stable, <50)
       - Zone 4 (700 pop)  ~ 26 (Stable)
     """
-    connected = [r for r in roads if zone.id in r.connects_zone_ids]
+    # Bolt Optimization: Accept pre-computed connected roads to eliminate duplicate O(N_roads) array filtering
+    connected = connected_roads if connected_roads is not None else [r for r in roads if zone.id in r.connects_zone_ids]
     if not connected:
         return 50
 
@@ -40,11 +41,12 @@ def calculate_priority(zone, roads: List) -> int:
     return min(max(score, 10), 100)
 
 
-def generate_rationale(zone, roads: List) -> str:
+def generate_rationale(zone, roads: List, connected_roads: Optional[List] = None) -> str:
     """
     Generates human-readable AI rationale based on road access ratio.
     """
-    connected = [r for r in roads if zone.id in r.connects_zone_ids]
+    # Bolt Optimization: Accept pre-computed connected roads to eliminate duplicate O(N_roads) array filtering
+    connected = connected_roads if connected_roads is not None else [r for r in roads if zone.id in r.connects_zone_ids]
     if not connected:
         return "No evacuation routes assigned."
 

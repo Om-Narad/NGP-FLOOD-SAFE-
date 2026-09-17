@@ -22,6 +22,9 @@ export default function PriorityActionFeed() {
     assignResponders,
   } = useSentinel();
 
+  // Bolt Optimization: Create Map once for O(1) road lookups during card list rendering
+  const roadMap = React.useMemo(() => new Map(roads.map(r => [r.id, r])), [roads]);
+
   const toggleExpand = (zoneId) => {
     setSelectedZoneId(prev => (prev === zoneId ? null : zoneId));
   };
@@ -63,9 +66,9 @@ export default function PriorityActionFeed() {
               badgeBg = 'bg-amber-50 text-amber-700 border-amber-200';
             }
 
-            // Get names of connecting roads
+            // Get names of connecting roads via O(1) Map lookup
             const zoneRoadObjs = zone.roadIds
-              .map(rId => roads.find(r => r.id === rId))
+              .map(rId => roadMap.get(rId))
               .filter(Boolean);
 
             return (

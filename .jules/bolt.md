@@ -1,0 +1,3 @@
+## 2026-08-07 - Pre-indexing relational lookup arrays into Maps
+**Learning:** In disaster response dashboards with relational models (zones connected to roads), repeatedly scanning arrays with `.find()` or list comprehensions inside render loops and scoring loops creates $O(N \cdot M)$ bottlenecks on every state update. Converting lookup arrays to $O(1)$ Hash Maps (`Map` in JS, dictionary or pre-filtered list in Python) before iteration drastically improves scoring and rendering efficiency.
+**Action:** Always check loop structures that look up items across collections by foreign IDs and convert them to Map lookups or pass pre-filtered subsets.
