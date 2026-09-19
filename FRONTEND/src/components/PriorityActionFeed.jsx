@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { useSentinel } from '../context/SentinelContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -21,6 +21,9 @@ export default function PriorityActionFeed() {
     setSelectedZoneId,
     assignResponders,
   } = useSentinel();
+
+  // Performance optimization (Bolt ⚡): Create O(1) road lookup map to avoid O(R) array searches per zone render
+  const roadsMap = useMemo(() => new Map(roads.map(r => [r.id, r])), [roads]);
 
   const toggleExpand = (zoneId) => {
     setSelectedZoneId(prev => (prev === zoneId ? null : zoneId));
@@ -65,7 +68,7 @@ export default function PriorityActionFeed() {
 
             // Get names of connecting roads
             const zoneRoadObjs = zone.roadIds
-              .map(rId => roads.find(r => r.id === rId))
+              .map(rId => roadsMap.get(rId))
               .filter(Boolean);
 
             return (
