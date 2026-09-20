@@ -63,11 +63,6 @@ export default function PriorityActionFeed() {
               badgeBg = 'bg-amber-50 text-amber-700 border-amber-200';
             }
 
-            // Get names of connecting roads
-            const zoneRoadObjs = zone.roadIds
-              .map(rId => roads.find(r => r.id === rId))
-              .filter(Boolean);
-
             return (
               <motion.div
                 key={zone.id}
@@ -201,7 +196,7 @@ export default function PriorityActionFeed() {
                     <div className="bg-white p-2 rounded border border-slate-200">
                       <span className="text-[10px] uppercase font-semibold text-slate-400 block mb-1.5">Connected Evacuation Routes</span>
                       <div className="space-y-1">
-                        {zoneRoadObjs.map(road => (
+                        {(zone.connectedRoads || []).map(road => (
                           <div key={road.id} className="flex items-center justify-between text-[11px]">
                             <span className="flex items-center space-x-1 text-slate-600">
                               <Navigation className="w-3 h-3 text-cyan-500" />
