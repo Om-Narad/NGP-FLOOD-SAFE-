@@ -91,6 +91,10 @@ app.add_middleware(
 # ─── Multi-Region In-Memory State Repository ────────────────────────────────
 REGION_STATES: Dict[str, Dict] = {}
 
+# Pre-instantiated static RegionInfo models to avoid redundant Pydantic parsing
+PRECACHED_REGIONS: List[RegionInfo] = [RegionInfo(**r) for r in REGIONS_METADATA]
+REGIONS_METADATA_MAP: Dict[str, Dict] = {r["id"]: r for r in REGIONS_METADATA}
+
 def get_current_iso_timestamp() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -180,7 +184,7 @@ def health_check():
 @app.get("/api/regions", response_model=List[RegionInfo])
 def get_regions():
     """Returns metadata for all available monitoring regions worldwide."""
-    return [RegionInfo(**r) for r in REGIONS_METADATA]
+    return PRECACHED_REGIONS
 
 @app.get("/api/gdacs-live")
 def get_gdacs_live():
@@ -196,7 +200,7 @@ def get_gdacs_live():
 def get_state(region: str = Query("assam", description="Region ID: assam, bangladesh, spain, brazil, usa, global")):
     """Single state payload endpoint populating Dashboard and Map View for a selected region."""
     r_state = get_region_data(region)
-    r_meta = next((r for r in REGIONS_METADATA if r["id"] == region.lower()), REGIONS_METADATA[0])
+    r_meta = REGIONS_METADATA_MAP.get(region.lower(), REGIONS_METADATA[0])
     
     return {
         "region": r_meta,
