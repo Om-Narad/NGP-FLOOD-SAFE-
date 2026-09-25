@@ -72,8 +72,12 @@ export function normalizeZone(z, idx) {
   };
 }
 
-export function computeZonePriority(zone, roadsList) {
-  const zoneRoads = (zone.roadIds || []).map(id => roadsList.find(r => r.id === id)).filter(Boolean);
+// ⚡ Bolt Optimization: Accept either a Map or Array for roadsInput to achieve O(1) road lookups
+export function computeZonePriority(zone, roadsInput) {
+  const isMap = roadsInput instanceof Map;
+  const zoneRoads = (zone.roadIds || [])
+    .map(id => (isMap ? roadsInput.get(id) : roadsInput.find(r => r.id === id)))
+    .filter(Boolean);
   const openRoads = zoneRoads.filter(r => r.status === 'open');
   const openCount = openRoads.length;
   const totalCount = (zone.roadIds || []).length;
@@ -119,6 +123,7 @@ export function computeZonePriority(zone, roadsList) {
     severityColor,
     roadsOpen: openCount,
     totalRoads: totalCount,
+    connectedRoads: zoneRoads,
     rationale,
   };
 }
@@ -215,11 +220,15 @@ export function SentinelProvider({ children }) {
     setCurrentRegionId(regionId);
   };
 
+  const roadMap = useMemo(() => {
+    return new Map(roads.map(r => [r.id, r]));
+  }, [roads]);
+
   const zones = useMemo(() => {
     return rawZones
-      .map(z => computeZonePriority(z, roads))
+      .map(z => computeZonePriority(z, roadMap))
       .sort((a, b) => b.priority - a.priority);
-  }, [rawZones, roads]);
+  }, [rawZones, roadMap]);
 
   const getFormattedTime = () => {
     const now = new Date();
