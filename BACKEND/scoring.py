@@ -1,5 +1,9 @@
 from typing import List
 
+# ⚡ Bolt Optimization:
+# Single-pass counts over connected roads eliminate redundant list allocations
+# and multiple list traversals during priority scoring and rationale generation.
+
 def calculate_priority(zone, roads: List) -> int:
     """
     Calculates priority score for a zone based on exposed population
@@ -10,27 +14,34 @@ def calculate_priority(zone, roads: List) -> int:
       - Zone 3 (1100 pop) ~ 41 (Stable, <50)
       - Zone 4 (700 pop)  ~ 26 (Stable)
     """
-    connected = [r for r in roads if zone.id in r.connects_zone_ids]
-    if not connected:
+    # Performance Optimization: Single-pass iteration to count total and open connected roads
+    total_count = 0
+    open_count = 0
+    zone_id = zone.id
+
+    for r in roads:
+        if zone_id in r.connects_zone_ids:
+            total_count += 1
+            if r.status == "open":
+                open_count += 1
+
+    if total_count == 0:
         return 50
 
-    total_count = len(connected)
-    open_count = len([r for r in connected if r.status == "open"])
-    access_ratio = open_count / total_count
-
-    # Base priority mapping or population formula
-    if zone.people_exposed >= 2000:
+    # Base priority mapping based on population
+    people = zone.people_exposed
+    if people >= 2000:
         base_score = 84
-    elif zone.people_exposed >= 1500:
+    elif people >= 1500:
         base_score = 62
-    elif zone.people_exposed >= 1000:
+    elif people >= 1000:
         base_score = 41
     else:
         base_score = 26
 
     # Penalty for blocked roads
     blocked_count = total_count - open_count
-    blocked_penalty = round(blocked_count * 15)
+    blocked_penalty = blocked_count * 15
 
     if open_count == 0:
         score = 98
@@ -44,12 +55,19 @@ def generate_rationale(zone, roads: List) -> str:
     """
     Generates human-readable AI rationale based on road access ratio.
     """
-    connected = [r for r in roads if zone.id in r.connects_zone_ids]
-    if not connected:
-        return "No evacuation routes assigned."
+    # Performance Optimization: Single-pass iteration to count total and open connected roads
+    total_count = 0
+    open_count = 0
+    zone_id = zone.id
 
-    total_count = len(connected)
-    open_count = len([r for r in connected if r.status == "open"])
+    for r in roads:
+        if zone_id in r.connects_zone_ids:
+            total_count += 1
+            if r.status == "open":
+                open_count += 1
+
+    if total_count == 0:
+        return "No evacuation routes assigned."
 
     if open_count == 0:
         return f"CRITICAL ISOLATION — 0 of {total_count} routes remain open. Emergency airlift required."
