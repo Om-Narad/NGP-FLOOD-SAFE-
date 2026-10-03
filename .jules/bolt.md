@@ -1,0 +1,3 @@
+## 2026-10-03 - Single-pass scoring optimization in FastAPI backend
+**Learning:** In FastAPI disaster management endpoints, `calculate_priority` and `generate_rationale` were repeatedly executing multiple list comprehensions over roads lists for every zone on state re-evaluations and road status toggles. Refactoring to a single loop pass with local variable caching eliminated intermediate list allocations and improved throughput in scoring routines.
+**Action:** When calculating derived scores over lists of models in Python backend endpoints, use single-pass counters with direct local variable caching rather than chaining multiple list comprehensions.
