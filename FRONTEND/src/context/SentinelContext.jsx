@@ -72,11 +72,27 @@ export function normalizeZone(z, idx) {
   };
 }
 
-export function computeZonePriority(zone, roadsList) {
-  const zoneRoads = (zone.roadIds || []).map(id => roadsList.find(r => r.id === id)).filter(Boolean);
-  const openRoads = zoneRoads.filter(r => r.status === 'open');
-  const openCount = openRoads.length;
-  const totalCount = (zone.roadIds || []).length;
+/**
+ * ⚡ Bolt Optimization:
+ * Computes zone priority score and rationale.
+ * Accepts `roadsMap` (Map<id, road>) instead of `roadsList` (Array) to perform O(1) road lookups.
+ * Reduces complexity per zone evaluation from O(K * R) to O(K), where K is connected road count and R is total roads.
+ */
+export function computeZonePriority(zone, roadsMap) {
+  const roadIds = zone.roadIds || [];
+  const totalCount = roadIds.length;
+  let openCount = 0;
+  let singleOpenRoadName = null;
+
+  for (let i = 0; i < totalCount; i++) {
+    const r = roadsMap.get ? roadsMap.get(roadIds[i]) : (Array.isArray(roadsMap) ? roadsMap.find(item => item.id === roadIds[i]) : null);
+    if (r && r.status === 'open') {
+      openCount++;
+      if (openCount === 1) {
+        singleOpenRoadName = r.name;
+      }
+    }
+  }
 
   let calculatedScore = zone.basePriority || zone.priority_score || 40;
   const blockedCount = totalCount - openCount;
@@ -106,8 +122,7 @@ export function computeZonePriority(zone, roadsList) {
   if (openCount === 0) {
     rationale = `CRITICAL ISOLATION: All ${totalCount} evacuation routes blocked! Emergency airlift required.`;
   } else if (openCount === 1) {
-    const singleOpenRoad = openRoads[0]?.name || 'arterial route';
-    rationale = `Evacuation bottleneck: single access via ${singleOpenRoad}. High flood threat.`;
+    rationale = `Evacuation bottleneck: single access via ${singleOpenRoadName || 'arterial route'}. High flood threat.`;
   } else if (blockedCount > 0) {
     rationale = `${blockedCount} route(s) compromised. Rerouting traffic via active arteries.`;
   }
@@ -215,9 +230,15 @@ export function SentinelProvider({ children }) {
     setCurrentRegionId(regionId);
   };
 
+  // ⚡ Bolt Optimization: Build O(1) Map lookup for roads to avoid O(R) searches inside computeZonePriority loop.
   const zones = useMemo(() => {
+    const roadsMap = new Map();
+    for (let i = 0; i < roads.length; i++) {
+      roadsMap.set(roads[i].id, roads[i]);
+    }
+
     return rawZones
-      .map(z => computeZonePriority(z, roads))
+      .map(z => computeZonePriority(z, roadsMap))
       .sort((a, b) => b.priority - a.priority);
   }, [rawZones, roads]);
 
