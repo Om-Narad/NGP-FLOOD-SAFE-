@@ -72,9 +72,17 @@ export function normalizeZone(z, idx) {
   };
 }
 
-export function computeZonePriority(zone, roadsList) {
-  const zoneRoads = (zone.roadIds || []).map(id => roadsList.find(r => r.id === id)).filter(Boolean);
-  const openRoads = zoneRoads.filter(r => r.status === 'open');
+// Performance Optimization (Bolt ⚡):
+// Accept either a Map or Array for roadsInput. Using Map O(1) lookups reduces time complexity from O(N * K * M)
+// to O(M + N * K) when processing all zones, and attaching pre-computed `connectedRoads` avoids repeated linear
+// searches in component render loops.
+export function computeZonePriority(zone, roadsInput) {
+  const roadsMap = roadsInput instanceof Map
+    ? roadsInput
+    : new Map((roadsInput || []).map(r => [r.id, r]));
+
+  const connectedRoads = (zone.roadIds || []).map(id => roadsMap.get(id)).filter(Boolean);
+  const openRoads = connectedRoads.filter(r => r.status === 'open');
   const openCount = openRoads.length;
   const totalCount = (zone.roadIds || []).length;
 
@@ -119,6 +127,7 @@ export function computeZonePriority(zone, roadsList) {
     severityColor,
     roadsOpen: openCount,
     totalRoads: totalCount,
+    connectedRoads,
     rationale,
   };
 }
@@ -215,9 +224,11 @@ export function SentinelProvider({ children }) {
     setCurrentRegionId(regionId);
   };
 
+  // Performance Optimization (Bolt ⚡): Construct roadsMap once per memoization update pass
   const zones = useMemo(() => {
+    const roadsMap = new Map(roads.map(r => [r.id, r]));
     return rawZones
-      .map(z => computeZonePriority(z, roads))
+      .map(z => computeZonePriority(z, roadsMap))
       .sort((a, b) => b.priority - a.priority);
   }, [rawZones, roads]);
 

@@ -1,0 +1,3 @@
+## 2026-10-09 - Map-based O(1) Road Lookup in Zone Priority Computation
+**Learning:** Performing repeated `Array.prototype.find()` scans over connected road IDs inside state calculation and component render loops creates O(N * K * M) linear overhead per render pass. Pre-building a `Map` of road objects once per calculation pass and attaching `connectedRoads` to the zone object reduces complexity to O(M + N * K) and avoids render-loop searches.
+**Action:** Always construct a `Map` for relational lookups across datasets (e.g. roads by ID) before iterating over parent entities (e.g. zones), and attach resolved relation arrays directly to memoized objects.
