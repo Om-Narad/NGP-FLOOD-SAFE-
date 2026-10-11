@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { useSentinel } from '../context/SentinelContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -25,6 +25,9 @@ export default function PriorityActionFeed() {
   const toggleExpand = (zoneId) => {
     setSelectedZoneId(prev => (prev === zoneId ? null : zoneId));
   };
+
+  // Performance optimization: Memoize roadMap to allow O(1) road lookups for expanded zones
+  const roadMap = useMemo(() => new Map(roads.map(r => [r.id, r])), [roads]);
 
   return (
     <div className="bg-white border border-slate-200 rounded-xl p-4 flex flex-col h-full shadow-sm">
@@ -63,10 +66,10 @@ export default function PriorityActionFeed() {
               badgeBg = 'bg-amber-50 text-amber-700 border-amber-200';
             }
 
-            // Get names of connecting roads
-            const zoneRoadObjs = zone.roadIds
-              .map(rId => roads.find(r => r.id === rId))
-              .filter(Boolean);
+            // Deferred & O(1) lookup: only compute connecting roads when the card is expanded
+            const zoneRoadObjs = isExpanded
+              ? (zone.roadIds || []).map(rId => roadMap.get(rId)).filter(Boolean)
+              : [];
 
             return (
               <motion.div
