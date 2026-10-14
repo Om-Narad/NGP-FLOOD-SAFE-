@@ -1,0 +1,3 @@
+## 2026-10-14 - Map Lookups & Context Value Memoization in React State Tree
+**Learning:** In SentinelPlan, recalculating zone priorities and rendering road cards repeatedly performed O(N) linear searches (`roads.find`) across road arrays, while an unmemoized context provider value triggered re-renders on every state tick. Constructing an O(1) `Map` for road lookups and memoizing the context value with `useMemo` eliminated unnecessary component re-renders and quadratic searches.
+**Action:** Always construct a `Map` when looking up entity relations in nested component maps/calculations and ensure top-level context provider value objects are memoized with `useMemo`.
