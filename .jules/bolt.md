@@ -1,0 +1,3 @@
+## 2026-10-15 - Map-Based Road Lookups in Hazard Priority Scoring
+**Learning:** `SentinelContext` recalculates hazard zone priority scores by looking up connected roads using array `.find()`, resulting in $O(Z \times R \times M)$ overhead. Indexing roads into a `Map` transforms road lookups into $O(1)$ operations, and attaching `connectedRoads` directly onto calculated zone objects prevents child components (`PriorityActionFeed`) from performing redundant linear searches on render.
+**Action:** Always pre-index relational lookups into Map instances when memoizing context calculations, and attach computed references directly to state objects for consumption in child views.
