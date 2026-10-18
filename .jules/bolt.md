@@ -1,0 +1,3 @@
+## 2026-10-18 - Pre-instantiated ML Transforms & O(1) React Map Lookups
+**Learning:** Re-instantiating torchvision `transforms.Compose` inside FastAPI endpoint handlers creates unnecessary object creation overhead on every request. Pre-instantiating transforms at module level eliminates allocation overhead during inference. In React, converting connecting road array searches (`roads.find`) to a memoized `Map` lookup (`roadsMap.get`) converts O(N*M) render scans to O(1) lookups.
+**Action:** Always pre-initialize static transform pipelines at module load time in Python endpoints, and use `Map` indexes for relation lookups in React contexts.
