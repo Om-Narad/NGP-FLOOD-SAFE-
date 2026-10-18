@@ -14,9 +14,26 @@ import io
 import os
 from typing import Optional, Dict, List
 
+import torch
+import torch.nn.functional as F
+import torchvision.transforms as transforms
+import torchvision.models as tv_models
+from PIL import Image
+
 from models import Zone, Road, Alert, Stats, AssignSquadRequest, PredictionResponse, RegionInfo
 from scoring import calculate_priority, generate_rationale
 from regions import REGIONS_METADATA, MULTI_REGION_DATA, fetch_gdacs_live_flood_alerts
+
+# Pre-instantiate standard ImageNet preprocessing pipeline once at startup to avoid per-request allocations
+_PREPROCESS_TRANSFORM = transforms.Compose([
+    transforms.Resize(256),
+    transforms.CenterCrop(224),
+    transforms.ToTensor(),
+    transforms.Normalize(
+        mean=[0.485, 0.456, 0.406],
+        std=[0.229, 0.224, 0.225]
+    ),
+])
 
 # ─── ML Model (flood_resnet18.pth) & PyTorch Initialization ────────────────────
 _flood_model = None
@@ -27,8 +44,6 @@ def _load_flood_model():
     """Loads flood_resnet18.pth at startup onto CUDA GPU (if available) or CPU."""
     global _flood_model, _flood_device, _model_load_error
     try:
-        import torch
-        import torchvision.models as tv_models
 
         # Detect GPU availability
         if torch.cuda.is_available():
@@ -225,26 +240,11 @@ async def predict_flood(
         raise HTTPException(status_code=400, detail="File must be an image (JPEG, PNG, etc.)")
 
     try:
-        import torch
-        import torch.nn.functional as F
-        from PIL import Image
-        import torchvision.transforms as transforms
-
         raw = await file.read()
         img = Image.open(io.BytesIO(raw)).convert("RGB")
 
-        # Standard ImageNet preprocessing (same as ResNet-18 training)
-        preprocess = transforms.Compose([
-            transforms.Resize(256),
-            transforms.CenterCrop(224),
-            transforms.ToTensor(),
-            transforms.Normalize(
-                mean=[0.485, 0.456, 0.406],
-                std=[0.229, 0.224, 0.225]
-            ),
-        ])
-
-        tensor = preprocess(img).unsqueeze(0)  # shape: [1, 3, 224, 224]
+        # Use pre-instantiated transforms pipeline
+        tensor = _PREPROCESS_TRANSFORM(img).unsqueeze(0)  # shape: [1, 3, 224, 224]
         
         # Transfer tensor to active device (CUDA GPU or CPU)
         device = torch.device(_flood_device)
