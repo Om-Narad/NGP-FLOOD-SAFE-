@@ -16,7 +16,6 @@ import {
 export default function PriorityActionFeed() {
   const {
     zones,
-    roads,
     selectedZoneId,
     setSelectedZoneId,
     assignResponders,
@@ -63,10 +62,8 @@ export default function PriorityActionFeed() {
               badgeBg = 'bg-amber-50 text-amber-700 border-amber-200';
             }
 
-            // Get names of connecting roads
-            const zoneRoadObjs = zone.roadIds
-              .map(rId => roads.find(r => r.id === rId))
-              .filter(Boolean);
+            // Performance optimization: Use pre-computed connectingRoads from zone object instead of O(M) array search
+            const zoneRoadObjs = zone.connectingRoads || [];
 
             return (
               <motion.div
