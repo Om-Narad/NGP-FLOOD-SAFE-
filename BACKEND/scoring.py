@@ -1,22 +1,25 @@
-from typing import List
+from typing import List, Optional
 
-def calculate_priority(zone, roads: List) -> int:
+def _get_connected_roads(zone, roads: List) -> List:
+    """Helper to filter connected roads for a zone in a single iteration."""
+    return [r for r in roads if zone.id in r.connects_zone_ids]
+
+def calculate_priority(zone, roads: List, connected: Optional[List] = None) -> int:
     """
     Calculates priority score for a zone based on exposed population
     and the status of connected evacuation roads.
-    Target base scores when all roads open:
-      - Zone 1 (2400 pop) ~ 84 (Critical, >=75)
-      - Zone 2 (1600 pop) ~ 62 (Warning, 50-74)
-      - Zone 3 (1100 pop) ~ 41 (Stable, <50)
-      - Zone 4 (700 pop)  ~ 26 (Stable)
+
+    Performance optimization: Accepts pre-filtered `connected` roads to avoid
+    redundant O(N) list comprehensions across scoring and rationale functions.
     """
-    connected = [r for r in roads if zone.id in r.connects_zone_ids]
+    if connected is None:
+        connected = _get_connected_roads(zone, roads)
+
     if not connected:
         return 50
 
     total_count = len(connected)
-    open_count = len([r for r in connected if r.status == "open"])
-    access_ratio = open_count / total_count
+    open_count = sum(1 for r in connected if r.status == "open")
 
     # Base priority mapping or population formula
     if zone.people_exposed >= 2000:
@@ -40,16 +43,21 @@ def calculate_priority(zone, roads: List) -> int:
     return min(max(score, 10), 100)
 
 
-def generate_rationale(zone, roads: List) -> str:
+def generate_rationale(zone, roads: List, connected: Optional[List] = None) -> str:
     """
     Generates human-readable AI rationale based on road access ratio.
+
+    Performance optimization: Accepts pre-filtered `connected` roads to avoid
+    redundant O(N) list comprehensions across scoring and rationale functions.
     """
-    connected = [r for r in roads if zone.id in r.connects_zone_ids]
+    if connected is None:
+        connected = _get_connected_roads(zone, roads)
+
     if not connected:
         return "No evacuation routes assigned."
 
     total_count = len(connected)
-    open_count = len([r for r in connected if r.status == "open"])
+    open_count = sum(1 for r in connected if r.status == "open")
 
     if open_count == 0:
         return f"CRITICAL ISOLATION — 0 of {total_count} routes remain open. Emergency airlift required."

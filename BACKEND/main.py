@@ -115,8 +115,10 @@ def seed_region_state(region_id: str):
             assigned_shelter=zd["assigned_shelter"],
             rationale=""
         )
-        temp_zone.priority_score = calculate_priority(temp_zone, roads)
-        temp_zone.rationale = generate_rationale(temp_zone, roads)
+        # Performance optimization: pre-filter connected roads once per zone
+        connected = [r for r in roads if temp_zone.id in r.connects_zone_ids]
+        temp_zone.priority_score = calculate_priority(temp_zone, roads, connected=connected)
+        temp_zone.rationale = generate_rationale(temp_zone, roads, connected=connected)
         zones.append(temp_zone)
 
     REGION_STATES[region_id] = {
@@ -297,9 +299,10 @@ def toggle_road(road_id: str, region: str = Query("assam")):
 
     affected_count = 0
     for zone in zones:
-        if road_id in zone.id or road_id in [r.id for r in roads if zone.id in r.connects_zone_ids]:
-            zone.priority_score = calculate_priority(zone, roads)
-            zone.rationale = generate_rationale(zone, roads)
+        connected = [r for r in roads if zone.id in r.connects_zone_ids]
+        if road_id in zone.id or any(r.id == road_id for r in connected):
+            zone.priority_score = calculate_priority(zone, roads, connected=connected)
+            zone.rationale = generate_rationale(zone, roads, connected=connected)
             affected_count += 1
 
     alert_msg = f"Road {road.name} {new_status}, {affected_count} zone(s) re-prioritized"
