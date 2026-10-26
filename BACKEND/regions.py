@@ -9,6 +9,11 @@ import urllib.request
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
 import json
+import time
+
+# ─── GDACS Live RSS Feed Cache (5-Minute TTL) ───────────────────────────────
+_GDACS_CACHE = {"data": None, "timestamp": 0.0}
+_GDACS_CACHE_TTL = 300  # Cache duration in seconds (5 minutes)
 
 REGIONS_METADATA = [
     {
@@ -309,8 +314,14 @@ MULTI_REGION_DATA = {
 def fetch_gdacs_live_flood_alerts():
     """
     Fetches real-time flood alerts from GDACS (Global Disaster Alert and Coordination System) RSS feed.
+    Uses a 5-minute TTL in-memory cache to eliminate blocking ~2.5s synchronous HTTP requests on repeated calls.
     Returns a list of dicts with disaster titles, countries, coordinates, and event severity.
     """
+    now = time.time()
+    # Return cached response if within TTL (300 seconds)
+    if _GDACS_CACHE["data"] is not None and (now - _GDACS_CACHE["timestamp"]) < _GDACS_CACHE_TTL:
+        return _GDACS_CACHE["data"]
+
     url = "https://www.gdacs.org/xml/rss.xml"
     gdacs_alerts = []
     try:
@@ -347,8 +358,15 @@ def fetch_gdacs_live_flood_alerts():
                         "pub_date": pub_date
                     })
 
+        # Update cache on successful fetch
+        _GDACS_CACHE["data"] = gdacs_alerts
+        _GDACS_CACHE["timestamp"] = now
+        return gdacs_alerts
+
     except Exception as e:
         print(f"[WARN] Failed to fetch GDACS live feed (using cached data): {e}")
+        if _GDACS_CACHE["data"] is not None:
+            return _GDACS_CACHE["data"]
 
     return gdacs_alerts
 
