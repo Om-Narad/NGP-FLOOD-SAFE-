@@ -22,6 +22,9 @@ export default function PriorityActionFeed() {
     assignResponders,
   } = useSentinel();
 
+  // Performance optimization: Precompute roadsMap once for O(1) road lookups
+  const roadsMap = React.useMemo(() => new Map(roads.map(r => [r.id, r])), [roads]);
+
   const toggleExpand = (zoneId) => {
     setSelectedZoneId(prev => (prev === zoneId ? null : zoneId));
   };
@@ -63,10 +66,10 @@ export default function PriorityActionFeed() {
               badgeBg = 'bg-amber-50 text-amber-700 border-amber-200';
             }
 
-            // Get names of connecting roads
-            const zoneRoadObjs = zone.roadIds
-              .map(rId => roads.find(r => r.id === rId))
-              .filter(Boolean);
+            // Performance optimization: Only map and resolve road objects when the accordion card is expanded
+            const zoneRoadObjs = isExpanded
+              ? (zone.roadIds || []).map(rId => roadsMap.get(rId)).filter(Boolean)
+              : [];
 
             return (
               <motion.div
