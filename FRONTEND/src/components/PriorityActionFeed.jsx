@@ -17,6 +17,7 @@ export default function PriorityActionFeed() {
   const {
     zones,
     roads,
+    roadsMap,
     selectedZoneId,
     setSelectedZoneId,
     assignResponders,
@@ -63,9 +64,9 @@ export default function PriorityActionFeed() {
               badgeBg = 'bg-amber-50 text-amber-700 border-amber-200';
             }
 
-            // Get names of connecting roads
+            // Get names of connecting roads using O(1) Map lookup
             const zoneRoadObjs = zone.roadIds
-              .map(rId => roads.find(r => r.id === rId))
+              .map(rId => (roadsMap ? roadsMap.get(rId) : roads.find(r => r.id === rId)))
               .filter(Boolean);
 
             return (
