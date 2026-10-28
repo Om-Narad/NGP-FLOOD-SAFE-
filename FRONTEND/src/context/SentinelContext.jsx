@@ -73,7 +73,11 @@ export function normalizeZone(z, idx) {
 }
 
 export function computeZonePriority(zone, roadsList) {
-  const zoneRoads = (zone.roadIds || []).map(id => roadsList.find(r => r.id === id)).filter(Boolean);
+  // Optimization: O(1) lookup when roadsList is a Map, fallback to O(N) array lookup if passed an array
+  const isMap = roadsList instanceof Map;
+  const zoneRoads = (zone.roadIds || [])
+    .map(id => (isMap ? roadsList.get(id) : roadsList.find(r => r.id === id)))
+    .filter(Boolean);
   const openRoads = zoneRoads.filter(r => r.status === 'open');
   const openCount = openRoads.length;
   const totalCount = (zone.roadIds || []).length;
@@ -215,11 +219,21 @@ export function SentinelProvider({ children }) {
     setCurrentRegionId(regionId);
   };
 
+  // Performance Optimization: Construct a Map for O(1) road lookups during priority calculations and feed rendering,
+  // reducing complexity from O(Z * R) to O(Z + R) where Z is number of zones and R is number of roads.
+  const roadsMap = useMemo(() => {
+    const map = new Map();
+    for (let i = 0; i < roads.length; i++) {
+      map.set(roads[i].id, roads[i]);
+    }
+    return map;
+  }, [roads]);
+
   const zones = useMemo(() => {
     return rawZones
-      .map(z => computeZonePriority(z, roads))
+      .map(z => computeZonePriority(z, roadsMap))
       .sort((a, b) => b.priority - a.priority);
-  }, [rawZones, roads]);
+  }, [rawZones, roadsMap]);
 
   const getFormattedTime = () => {
     const now = new Date();
@@ -461,6 +475,7 @@ export function SentinelProvider({ children }) {
         switchRegion,
         zones,
         roads,
+        roadsMap,
         alerts,
         stats,
         selectedZoneId,
