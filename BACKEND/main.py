@@ -16,7 +16,7 @@ from typing import Optional, Dict, List
 
 from models import Zone, Road, Alert, Stats, AssignSquadRequest, PredictionResponse, RegionInfo
 from scoring import calculate_priority, generate_rationale
-from regions import REGIONS_METADATA, MULTI_REGION_DATA, fetch_gdacs_live_flood_alerts
+from regions import REGIONS_METADATA, REGIONS_METADATA_MAP, MULTI_REGION_DATA, fetch_gdacs_live_flood_alerts
 
 # ─── ML Model (flood_resnet18.pth) & PyTorch Initialization ────────────────────
 _flood_model = None
@@ -115,8 +115,10 @@ def seed_region_state(region_id: str):
             assigned_shelter=zd["assigned_shelter"],
             rationale=""
         )
-        temp_zone.priority_score = calculate_priority(temp_zone, roads)
-        temp_zone.rationale = generate_rationale(temp_zone, roads)
+        # Performance Optimization: pre-compute connected roads list once per zone
+        connected = [r for r in roads if temp_zone.id in r.connects_zone_ids]
+        temp_zone.priority_score = calculate_priority(temp_zone, roads, connected=connected)
+        temp_zone.rationale = generate_rationale(temp_zone, roads, connected=connected)
         zones.append(temp_zone)
 
     REGION_STATES[region_id] = {
@@ -196,7 +198,8 @@ def get_gdacs_live():
 def get_state(region: str = Query("assam", description="Region ID: assam, bangladesh, spain, brazil, usa, global")):
     """Single state payload endpoint populating Dashboard and Map View for a selected region."""
     r_state = get_region_data(region)
-    r_meta = next((r for r in REGIONS_METADATA if r["id"] == region.lower()), REGIONS_METADATA[0])
+    # Performance Optimization: O(1) hash map lookup instead of O(N) linear scan
+    r_meta = REGIONS_METADATA_MAP.get(region.lower(), REGIONS_METADATA[0])
     
     return {
         "region": r_meta,
@@ -297,9 +300,11 @@ def toggle_road(road_id: str, region: str = Query("assam")):
 
     affected_count = 0
     for zone in zones:
-        if road_id in zone.id or road_id in [r.id for r in roads if zone.id in r.connects_zone_ids]:
-            zone.priority_score = calculate_priority(zone, roads)
-            zone.rationale = generate_rationale(zone, roads)
+        # Performance Optimization: compute connected roads once and check road_id membership
+        connected = [r for r in roads if zone.id in r.connects_zone_ids]
+        if road_id in zone.id or any(r.id == road_id for r in connected):
+            zone.priority_score = calculate_priority(zone, roads, connected=connected)
+            zone.rationale = generate_rationale(zone, roads, connected=connected)
             affected_count += 1
 
     alert_msg = f"Road {road.name} {new_status}, {affected_count} zone(s) re-prioritized"

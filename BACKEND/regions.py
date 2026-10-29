@@ -73,6 +73,9 @@ REGIONS_METADATA = [
     }
 ]
 
+# Performance Optimization: O(1) hash map lookup for region metadata
+REGIONS_METADATA_MAP = {r["id"]: r for r in REGIONS_METADATA}
+
 # ─── REGION DATASETS ─────────────────────────────────────────────────────────
 
 MULTI_REGION_DATA = {

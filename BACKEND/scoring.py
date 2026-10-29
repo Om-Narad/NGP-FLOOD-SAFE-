@@ -1,6 +1,6 @@
-from typing import List
+from typing import List, Optional
 
-def calculate_priority(zone, roads: List) -> int:
+def calculate_priority(zone, roads: List, connected: Optional[List] = None) -> int:
     """
     Calculates priority score for a zone based on exposed population
     and the status of connected evacuation roads.
@@ -10,13 +10,15 @@ def calculate_priority(zone, roads: List) -> int:
       - Zone 3 (1100 pop) ~ 41 (Stable, <50)
       - Zone 4 (700 pop)  ~ 26 (Stable)
     """
-    connected = [r for r in roads if zone.id in r.connects_zone_ids]
+    # Performance Optimization: reuse pre-computed connected list to avoid O(N*M) redundant road filter loops
+    if connected is None:
+        connected = [r for r in roads if zone.id in r.connects_zone_ids]
     if not connected:
         return 50
 
     total_count = len(connected)
-    open_count = len([r for r in connected if r.status == "open"])
-    access_ratio = open_count / total_count
+    # Performance Optimization: use generator sum to count open roads without intermediate list allocations
+    open_count = sum(1 for r in connected if r.status == "open")
 
     # Base priority mapping or population formula
     if zone.people_exposed >= 2000:
@@ -40,16 +42,19 @@ def calculate_priority(zone, roads: List) -> int:
     return min(max(score, 10), 100)
 
 
-def generate_rationale(zone, roads: List) -> str:
+def generate_rationale(zone, roads: List, connected: Optional[List] = None) -> str:
     """
     Generates human-readable AI rationale based on road access ratio.
     """
-    connected = [r for r in roads if zone.id in r.connects_zone_ids]
+    # Performance Optimization: reuse pre-computed connected list to avoid O(N*M) redundant road filter loops
+    if connected is None:
+        connected = [r for r in roads if zone.id in r.connects_zone_ids]
     if not connected:
         return "No evacuation routes assigned."
 
     total_count = len(connected)
-    open_count = len([r for r in connected if r.status == "open"])
+    # Performance Optimization: use generator sum to count open roads without intermediate list allocations
+    open_count = sum(1 for r in connected if r.status == "open")
 
     if open_count == 0:
         return f"CRITICAL ISOLATION — 0 of {total_count} routes remain open. Emergency airlift required."
