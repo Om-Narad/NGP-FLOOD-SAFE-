@@ -9,6 +9,15 @@ import urllib.request
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
 import json
+import time
+import threading
+
+# ─── GDACS Live RSS Feed Cache (5-Minute TTL) ───────────────────────────────
+# Prevents repeated ~2-second blocking synchronous HTTP requests on /api/gdacs-live
+_gdacs_cache = None
+_gdacs_cache_time = 0.0
+_gdacs_cache_lock = threading.Lock()
+_GDACS_CACHE_TTL = 300  # Cache duration in seconds (5 minutes)
 
 REGIONS_METADATA = [
     {
@@ -309,46 +318,66 @@ MULTI_REGION_DATA = {
 def fetch_gdacs_live_flood_alerts():
     """
     Fetches real-time flood alerts from GDACS (Global Disaster Alert and Coordination System) RSS feed.
+    Uses thread-safe in-memory TTL caching (5 minutes) to eliminate repeated ~2s blocking synchronous HTTP requests.
     Returns a list of dicts with disaster titles, countries, coordinates, and event severity.
     """
-    url = "https://www.gdacs.org/xml/rss.xml"
-    gdacs_alerts = []
-    try:
-        req = urllib.request.Request(url, headers={'User-Agent': 'SentinelPlan/1.0'})
-        with urllib.request.urlopen(req, timeout=4) as response:
-            xml_data = response.read()
-            root = ET.fromstring(xml_data)
+    global _gdacs_cache, _gdacs_cache_time
+    now = time.time()
 
-            ns = {
-                'gdacs': 'http://www.gdacs.org',
-                'geo': 'http://www.w3.org/2003/01/geo/wgs84_pos#'
-            }
+    # Fast path: Return cached response if valid within TTL
+    if _gdacs_cache is not None and (now - _gdacs_cache_time) < _GDACS_CACHE_TTL:
+        return list(_gdacs_cache)
 
-            for item in root.findall('.//item'):
-                title = item.findtext('title', default='Disaster Alert')
-                event_type = item.findtext('gdacs:eventtype', default='', namespaces=ns)
-                country = item.findtext('gdacs:country', default='Global', namespaces=ns)
-                lat_str = item.findtext('geo:lat', default='0.0', namespaces=ns)
-                lng_str = item.findtext('geo:long', default='0.0', namespaces=ns)
-                pub_date = item.findtext('pubDate', default='')
+    with _gdacs_cache_lock:
+        # Double-check inside lock to avoid redundant fetches under concurrency
+        now = time.time()
+        if _gdacs_cache is not None and (now - _gdacs_cache_time) < _GDACS_CACHE_TTL:
+            return list(_gdacs_cache)
 
-                if event_type.upper() == 'FL' or 'FLOOD' in title.upper():
-                    try:
-                        lat = float(lat_str)
-                        lng = float(lng_str)
-                    except ValueError:
-                        lat, lng = 0.0, 0.0
+        url = "https://www.gdacs.org/xml/rss.xml"
+        gdacs_alerts = []
+        try:
+            req = urllib.request.Request(url, headers={'User-Agent': 'SentinelPlan/1.0'})
+            with urllib.request.urlopen(req, timeout=4) as response:
+                xml_data = response.read()
+                root = ET.fromstring(xml_data)
 
-                    gdacs_alerts.append({
-                        "title": title,
-                        "event_type": "Flood",
-                        "country": country,
-                        "coordinates": [lat, lng],
-                        "pub_date": pub_date
-                    })
+                ns = {
+                    'gdacs': 'http://www.gdacs.org',
+                    'geo': 'http://www.w3.org/2003/01/geo/wgs84_pos#'
+                }
 
-    except Exception as e:
-        print(f"[WARN] Failed to fetch GDACS live feed (using cached data): {e}")
+                for item in root.findall('.//item'):
+                    title = item.findtext('title', default='Disaster Alert')
+                    event_type = item.findtext('gdacs:eventtype', default='', namespaces=ns)
+                    country = item.findtext('gdacs:country', default='Global', namespaces=ns)
+                    lat_str = item.findtext('geo:lat', default='0.0', namespaces=ns)
+                    lng_str = item.findtext('geo:long', default='0.0', namespaces=ns)
+                    pub_date = item.findtext('pubDate', default='')
 
-    return gdacs_alerts
+                    if event_type.upper() == 'FL' or 'FLOOD' in title.upper():
+                        try:
+                            lat = float(lat_str)
+                            lng = float(lng_str)
+                        except ValueError:
+                            lat, lng = 0.0, 0.0
+
+                        gdacs_alerts.append({
+                            "title": title,
+                            "event_type": "Flood",
+                            "country": country,
+                            "coordinates": [lat, lng],
+                            "pub_date": pub_date
+                        })
+
+            # Update in-memory cache on successful fetch
+            _gdacs_cache = gdacs_alerts
+            _gdacs_cache_time = now
+
+        except Exception as e:
+            print(f"[WARN] Failed to fetch GDACS live feed (using cached data): {e}")
+            if _gdacs_cache is not None:
+                return list(_gdacs_cache)
+
+        return list(gdacs_alerts)
 
