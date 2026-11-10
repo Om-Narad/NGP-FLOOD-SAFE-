@@ -72,11 +72,30 @@ export function normalizeZone(z, idx) {
   };
 }
 
-export function computeZonePriority(zone, roadsList) {
-  const zoneRoads = (zone.roadIds || []).map(id => roadsList.find(r => r.id === id)).filter(Boolean);
-  const openRoads = zoneRoads.filter(r => r.status === 'open');
-  const openCount = openRoads.length;
-  const totalCount = (zone.roadIds || []).length;
+// ⚡ Bolt Optimization:
+// Previously, computing zone priority performed O(R) lookups with roadsList.find()
+// across nested loops, allocating multiple intermediate arrays (.map, .filter).
+// By accepting either a pre-indexed Map (O(1) lookups) or an Array (fallback)
+// and aggregating counts in a single pass, we reduce time complexity from O(Z * R) to O(R + Z * K)
+// and eliminate intermediate garbage collector pressure.
+export function computeZonePriority(zone, roadsInput) {
+  const roadIds = zone.roadIds || [];
+  const totalCount = roadIds.length;
+  const isMap = roadsInput instanceof Map;
+
+  let openCount = 0;
+  let firstOpenRoadName = null;
+
+  for (let i = 0; i < totalCount; i++) {
+    const id = roadIds[i];
+    const road = isMap ? roadsInput.get(id) : roadsInput.find(r => r.id === id);
+    if (road && road.status === 'open') {
+      openCount++;
+      if (firstOpenRoadName === null) {
+        firstOpenRoadName = road.name;
+      }
+    }
+  }
 
   let calculatedScore = zone.basePriority || zone.priority_score || 40;
   const blockedCount = totalCount - openCount;
@@ -106,7 +125,7 @@ export function computeZonePriority(zone, roadsList) {
   if (openCount === 0) {
     rationale = `CRITICAL ISOLATION: All ${totalCount} evacuation routes blocked! Emergency airlift required.`;
   } else if (openCount === 1) {
-    const singleOpenRoad = openRoads[0]?.name || 'arterial route';
+    const singleOpenRoad = firstOpenRoadName || 'arterial route';
     rationale = `Evacuation bottleneck: single access via ${singleOpenRoad}. High flood threat.`;
   } else if (blockedCount > 0) {
     rationale = `${blockedCount} route(s) compromised. Rerouting traffic via active arteries.`;
@@ -216,8 +235,14 @@ export function SentinelProvider({ children }) {
   };
 
   const zones = useMemo(() => {
+    // ⚡ Bolt Optimization: Build an O(1) road lookup Map once per render cycle
+    // instead of repeatedly searching through the entire roads array for each zone.
+    const roadsMap = new Map();
+    for (let i = 0; i < roads.length; i++) {
+      roadsMap.set(roads[i].id, roads[i]);
+    }
     return rawZones
-      .map(z => computeZonePriority(z, roads))
+      .map(z => computeZonePriority(z, roadsMap))
       .sort((a, b) => b.priority - a.priority);
   }, [rawZones, roads]);
 
