@@ -1,0 +1,3 @@
+## 2025-05-18 - Zone Priority Recomputation Optimization
+**Learning:** In dashboard views recomputed upon telemetry updates or route toggling, linear lookups (`Array.prototype.find`) across nested zone-road relationships create O(Z * R) execution overhead and excessive garbage collection from intermediate arrays (.map, .filter). Pre-indexing road collections into a Map reduces lookup overhead to O(1) per route check while preserving backward compatibility.
+**Action:** When calculating relational statuses across entity lists in React context/state derivations, index related records into a `Map` prior to iterating across primary entities.
