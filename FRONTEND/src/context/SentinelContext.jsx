@@ -72,8 +72,20 @@ export function normalizeZone(z, idx) {
   };
 }
 
-export function computeZonePriority(zone, roadsList) {
-  const zoneRoads = (zone.roadIds || []).map(id => roadsList.find(r => r.id === id)).filter(Boolean);
+/**
+ * computeZonePriority — Computes priority score and risk rationale for a zone.
+ *
+ * Performance optimization:
+ * Accepts either a Map<string, Road> or an array of Roads. Passing a Map enables
+ * O(1) road lookups instead of O(R) linear searches per road ID, reducing total
+ * computation complexity across all zones from O(Z * K * R) to O(Z * K) where
+ * K is the number of road IDs per zone.
+ */
+export function computeZonePriority(zone, roadsMapOrList) {
+  const isMap = roadsMapOrList instanceof Map;
+  const zoneRoads = (zone.roadIds || [])
+    .map(id => (isMap ? roadsMapOrList.get(id) : roadsMapOrList.find(r => r.id === id)))
+    .filter(Boolean);
   const openRoads = zoneRoads.filter(r => r.status === 'open');
   const openCount = openRoads.length;
   const totalCount = (zone.roadIds || []).length;
@@ -215,9 +227,12 @@ export function SentinelProvider({ children }) {
     setCurrentRegionId(regionId);
   };
 
+  // Performance optimization: Pre-index roads in a Map once per update to allow O(1)
+  // road lookup inside computeZonePriority instead of repeated O(R) array scans for every zone.
   const zones = useMemo(() => {
+    const roadsMap = new Map(roads.map(r => [r.id, r]));
     return rawZones
-      .map(z => computeZonePriority(z, roads))
+      .map(z => computeZonePriority(z, roadsMap))
       .sort((a, b) => b.priority - a.priority);
   }, [rawZones, roads]);
 

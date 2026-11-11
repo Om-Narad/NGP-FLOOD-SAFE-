@@ -1,0 +1,3 @@
+## 2026-08-07 - Pre-indexing entity relationships in React client state
+**Learning:** In GIS/graph-like React state architectures where polygons/zones reference edge/road IDs, calculating derived attributes (like priority scores or reachability) inside `useMemo` using nested `.find()` searches creates an O(Z * K * R) bottleneck on every state change (e.g. road toggles, real-time telemetry updates). Pre-indexing connected entities into a `Map<id, Entity>` reduces lookup to O(1) and overall recalculation to O(R + Z * K).
+**Action:** When computing derived state over interconnected collections in React, build an indexed `Map` or hash table once within the `useMemo` computation or state normalizer before mapping over child elements.
